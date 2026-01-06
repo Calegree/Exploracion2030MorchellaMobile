@@ -85,11 +85,6 @@ android {
         versionCode 1
         versionName "1.0"
     }
-    def releaseStoreFile = project.findProperty("MYAPP_UPLOAD_STORE_FILE")
-    def releaseStorePassword = project.findProperty("MYAPP_UPLOAD_STORE_PASSWORD")
-    def releaseKeyAlias = project.findProperty("MYAPP_UPLOAD_KEY_ALIAS")
-    def releaseKeyPassword = project.findProperty("MYAPP_UPLOAD_KEY_PASSWORD")
-
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -98,13 +93,18 @@ android {
             keyPassword 'android'
         }
         release {
-            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
-                storeFile file(releaseStoreFile)
-                storePassword releaseStorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
+            def ksPath = System.getenv("KEYSTORE_PATH")
+            def ksPassword = System.getenv("KEYSTORE_PASSWORD")
+            def ksAlias = System.getenv("KEY_ALIAS")
+            def ksKeyPassword = System.getenv("KEY_PASSWORD")
+
+            if (ksPath && ksPassword && ksAlias && ksKeyPassword) {
+                storeFile file(ksPath)
+                storePassword ksPassword
+                keyAlias ksAlias
+                keyPassword ksKeyPassword
             } else {
-                // Fallback to debug keystore to keep local builds working if release secrets are absent
+                // Keep local builds working if release secrets are absent
                 storeFile file('debug.keystore')
                 storePassword 'android'
                 keyAlias 'androiddebugkey'
