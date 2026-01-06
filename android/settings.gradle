@@ -7,6 +7,8 @@ pluginManagement {
     includeBuild("../node_modules/@react-native/gradle-plugin")
 }
 
+plugins { id("com.facebook.react.settings") }
+
 dependencyResolutionManagement {
     repositories {
         google()
@@ -14,7 +16,6 @@ dependencyResolutionManagement {
     }
 }
 
-plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
 rootProject.name = 'MorchellApp'
 include ':app'
