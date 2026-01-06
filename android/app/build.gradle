@@ -1,4 +1,4 @@
-Generar keystore (si no tienes):
+
 keytool -genkeypair -v -keystore my-release-key.jks -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
 Codificar keystore para subir a secrets:
 base64 -w 0 my-release-key.jks # copia el output y pégalo en el secret APK_SIGNING_KEYapply plugin: "com.android.application"
