@@ -68,18 +68,23 @@ jobs:
           export PATH=${{ runner.temp }}/android-sdk/cmdline-tools/latest/bin:${{ runner.temp }}/android-sdk/platform-tools:$PATH
           ./gradlew clean assembleRelease --no-daemon
 
+      - name: Rename APK for release
+        run: |
+          mkdir -p android/app/build/outputs/apk/release
+          mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/morchellapp.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: morchellapp-apk
+          path: android/app/build/outputs/apk/release/morchellapp.apk
 
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
         with:
-          tag_name: "v${{ github.run_number }}"
-          release_name: "app-release-${{ github.run_number }}"
+          tag_name: "morchellapp-v${{ github.run_number }}"
+          release_name: "MorchellApp v${{ github.run_number }}"
           body: "Automated release - build ${{ github.run_number }}"
           draft: false
           prerelease: false
@@ -92,6 +97,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: android/app/build/outputs/apk/release/app-release.apk
-          asset_name: app-release.apk
+          asset_path: android/app/build/outputs/apk/release/morchellapp.apk
+          asset_name: morchellapp.apk
           asset_content_type: application/vnd.android.package-archive
