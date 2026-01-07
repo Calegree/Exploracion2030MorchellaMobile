@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Button, Image, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Button, Image, StyleSheet, Alert, ScrollView } from 'react-native';
 import { TIMEOUT_MS } from '../api/predict';
-import React, { useState } from 'react';
 import { predictWithFallback, PredictionResult } from '../services/PredictionService';
 import { launchCamera, launchImageLibrary, ImageLibraryOptions, CameraOptions } from 'react-native-image-picker';
+import LoadingAnimation from '../components/LoadingAnimation';
+import ResultCard from '../components/ResultCard';
 
 
 export default function TestScreen() {
@@ -91,39 +92,25 @@ export default function TestScreen() {
       <Button title="Analizar imagen" onPress={onPredict} disabled={loading || !imageUri} />
 
       {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>{isSwitchingToLocal ? 'Cambiando al modelo local' : 'Conectando con nuestro cerebro en la nube'}</Text>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBarFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: isSwitchingToLocal ? '#FF9800' : '#007AFF' }]} />
-          </View>
-        </View>
+        <LoadingAnimation
+          message="Analizando tu imagen..."
+          progress={progress}
+          showProgressBar={true}
+        />
       )}
 
-      {result && result.prediction && (
+      {result && result.prediction && imageUri && (
         <View style={styles.result}>
-          {/* Indicador de fuente de predicción */}
-          <View style={[
-            styles.sourceIndicator,
-            result.source === 'api' ? styles.sourceApi : styles.sourceLocal
-          ]}>
-            <Text style={styles.sourceText}>
-              {result.source === 'api' 
-                ? '🌐 Predicción desde servidor' 
-                : '📱 Predicción local (offline)'}
-            </Text>
-            {result.modelSource && (
-              <Text style={styles.modelSourceText}>
-                Modelo: {result.modelSource}
-              </Text>
-            )}
-          </View>
-
-          {/* Resultados de la predicción */}
+          <Text style={styles.resultTitle}>Resultado del Análisis</Text>
+          <ResultCard
+            imageUri={imageUri}
+            isMorchella={result.prediction.predicted_index === 0}
+            confidence={result.prediction.confidence}
+            model={result.source === 'api' ? 'Online' : 'Local'}
+          />
+          
+          {/* Detalles adicionales para testing */}
           <View style={styles.predictionDetails}>
-            <Text style={styles.resultLabel}>
-              Resultado: <Text style={styles.resultValue}>{result.prediction.predicted_label}</Text>
-            </Text>
             <Text style={styles.resultLabel}>
               Confianza: <Text style={styles.resultValue}>{(result.prediction.confidence * 100).toFixed(2)}%</Text>
             </Text>
@@ -183,6 +170,12 @@ const styles = StyleSheet.create({
   
   result: { 
     marginTop: 16,
+    marginBottom: 12,
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2F2418',
     marginBottom: 12,
   },
   

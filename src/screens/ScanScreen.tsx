@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, SafeAreaView, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Alert, Modal, ScrollView } from 'react-native';
 import { TIMEOUT_MS } from '../api/predict';
 import AppHeader from '../components/AppHeader';
+import LoadingAnimation from '../components/LoadingAnimation';
+import ResultCard from '../components/ResultCard';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { predictWithFallback } from '../services/PredictionService';
 import { saveToHistory } from '../services/HistoryService';
@@ -154,20 +156,17 @@ export default function ScanScreen({ navigation }: any) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Reconocimiento</Text>
-        </View>
-
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>{isSwitchingToLocal ? 'Cambiando al modelo local' : 'Conectando con nuestro cerebro en la nube'}</Text>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBarFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: isSwitchingToLocal ? '#FF9800' : COLORS.primary }]} />
-            </View>
-            {selectedImage && (
-              <Image source={{ uri: selectedImage }} style={styles.loadingImage} />
-            )}
+        <AppHeader />
+        <LoadingAnimation
+          message="Analizando tu imagen..."
+          progress={progress}
+          showProgressBar={true}
+        />
+        {selectedImage && (
+          <View style={styles.previewContainer}>
+            <Image source={{ uri: selectedImage }} style={styles.loadingImage} />
           </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -207,37 +206,28 @@ export default function ScanScreen({ navigation }: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <Text style={styles.closeX}>X</Text>
+              <Text style={styles.closeX}>✕</Text>
             </TouchableOpacity>
 
-            {selectedImage && (
-              <Image source={{ uri: selectedImage }} style={styles.resultImage} />
-            )}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Resultado del Análisis</Text>
+              
+              {result?.prediction && selectedImage && (
+                <ResultCard
+                  imageUri={selectedImage}
+                  isMorchella={result.prediction.predicted_index === 0}
+                  confidence={result.prediction.confidence}
+                  model={result.source === 'api' ? 'Online' : 'Local'}
+                />
+              )}
 
-            <View style={[
-              styles.sourceIndicator,
-              result?.source === 'api' ? styles.sourceApi : styles.sourceLocal
-            ]}>
-              <Text style={styles.sourceText}>
-                Modelo: {result?.source === 'api' ? 'Online' : 'Local'}
-              </Text>
-            </View>
-
-            {result?.prediction && (
-              <View style={styles.resultDetails}>
-                <Text style={styles.resultTitle}>Resultado</Text>
-                <Text style={[styles.resultLabel, { color: getResultColor(result) }]}>
-                  {displayLabelFromResult(result.prediction)}
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity 
-              style={styles.acceptButton} 
-              onPress={handleClose}
-            >
-              <Text style={styles.acceptButtonText}>Aceptar</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.acceptButton} 
+                onPress={handleClose}
+              >
+                <Text style={styles.acceptButtonText}>Aceptar</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -364,6 +354,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
     backgroundColor: COLORS.background,
     borderRadius: 16,
     padding: 24,
@@ -372,6 +363,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  previewContainer: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    width: 150,
+    height: 150,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: COLORS.border,
   },
   closeButton: {
     position: 'absolute',
