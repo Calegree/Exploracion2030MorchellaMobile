@@ -137,7 +137,7 @@ export default function HistoryScreen({ navigation }: any) {
       {/* List */}
       {historyItems.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Icon name="history" size={64} color={COLORS.border} />
+          <Image source={require('../assets/icons/glass.png')} style={{ width: 64, height: 64, tintColor: COLORS.border }} />
           <Text style={styles.emptyText}>No hay análisis previos</Text>
           <Text style={styles.emptySubtext}>
             Las fotos que analices aparecerán aquí

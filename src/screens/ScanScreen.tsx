@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, SafeAreaView, Alert, Modal } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Alert, Modal, ScrollView } from 'react-native';
+import { TIMEOUT_MS } from '../api/predict';
 import AppHeader from '../components/AppHeader';
+import LoadingAnimation from '../components/LoadingAnimation';
+import ResultCard from '../components/ResultCard';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { predictWithFallback } from '../services/PredictionService';
 import { saveToHistory } from '../services/HistoryService';
@@ -19,6 +22,18 @@ export default function ScanScreen({ navigation }: any) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const [isSwitchingToLocal, setIsSwitchingToLocal] = useState(false);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current as unknown as number);
+      timerRef.current = null;
+    }
+    setProgress(0);
+    setIsSwitchingToLocal(false);
+  };
 
   const pickImage = async () => {
     try {
@@ -38,6 +53,15 @@ export default function ScanScreen({ navigation }: any) {
 
       setSelectedImage(uri);
       setIsLoading(true);
+      setProgress(0);
+      setIsSwitchingToLocal(false);
+      const start = Date.now();
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const ratio = Math.min(1, elapsed / TIMEOUT_MS);
+        setProgress(ratio);
+        if (elapsed >= TIMEOUT_MS) setIsSwitchingToLocal(true);
+      }, 100);
 
       // Realizar predicción con fallback
       const predictionResult = await predictWithFallback(uri);
@@ -66,9 +90,11 @@ export default function ScanScreen({ navigation }: any) {
         });
       }
 
+      clearTimer();
       setIsLoading(false);
       setShowResult(true);
     } catch (error: any) {
+      clearTimer();
       setIsLoading(false);
       setSelectedImage(null);
       Alert.alert('Error', error.message || 'Error al procesar la imagen');
@@ -130,20 +156,17 @@ export default function ScanScreen({ navigation }: any) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Reconocimiento</Text>
-        </View>
-
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>
-            Identificando el hongo...{'\n'}
-            Esto puede tomar unos segundos
-          </Text>
-          {selectedImage && (
+        <AppHeader />
+        <LoadingAnimation
+          message="Analizando tu imagen..."
+          progress={progress}
+          showProgressBar={true}
+        />
+        {selectedImage && (
+          <View style={styles.previewContainer}>
             <Image source={{ uri: selectedImage }} style={styles.loadingImage} />
-          )}
-        </View>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -183,37 +206,28 @@ export default function ScanScreen({ navigation }: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <Text style={styles.closeX}>X</Text>
+              <Text style={styles.closeX}>✕</Text>
             </TouchableOpacity>
 
-            {selectedImage && (
-              <Image source={{ uri: selectedImage }} style={styles.resultImage} />
-            )}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Resultado del Análisis</Text>
+              
+              {result?.prediction && selectedImage && (
+                <ResultCard
+                  imageUri={selectedImage}
+                  isMorchella={result.prediction.predicted_index === 0}
+                  confidence={result.prediction.confidence}
+                  model={result.source === 'api' ? 'Online' : 'Local'}
+                />
+              )}
 
-            <View style={[
-              styles.sourceIndicator,
-              result?.source === 'api' ? styles.sourceApi : styles.sourceLocal
-            ]}>
-              <Text style={styles.sourceText}>
-                Modelo: {result?.source === 'api' ? 'Online' : 'Local'}
-              </Text>
-            </View>
-
-            {result?.prediction && (
-              <View style={styles.resultDetails}>
-                <Text style={styles.resultTitle}>Resultado</Text>
-                <Text style={[styles.resultLabel, { color: getResultColor(result) }]}>
-                  {displayLabelFromResult(result.prediction)}
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity 
-              style={styles.acceptButton} 
-              onPress={handleClose}
-            >
-              <Text style={styles.acceptButtonText}>Aceptar</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.acceptButton} 
+                onPress={handleClose}
+              >
+                <Text style={styles.acceptButtonText}>Aceptar</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -319,6 +333,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     opacity: 0.5,
   },
+  progressBarContainer: {
+    width: 220,
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6B4F2A',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -328,6 +354,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
     backgroundColor: COLORS.background,
     borderRadius: 16,
     padding: 24,
@@ -336,6 +363,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  previewContainer: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    width: 150,
+    height: 150,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: COLORS.border,
   },
   closeButton: {
     position: 'absolute',

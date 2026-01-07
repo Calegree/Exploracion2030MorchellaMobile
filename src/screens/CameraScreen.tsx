@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, SafeAreaView, Modal, Image, Platform, PermissionsAndroid } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, Modal, Image, Platform, PermissionsAndroid, ScrollView } from 'react-native';
+import { TIMEOUT_MS } from '../api/predict';
 import AppHeader from '../components/AppHeader';
+import LoadingAnimation from '../components/LoadingAnimation';
+import ResultCard from '../components/ResultCard';
 import { launchCamera } from 'react-native-image-picker';
 import { predictWithFallback } from '../services/PredictionService';
 import { saveToHistory } from '../services/HistoryService';
@@ -21,6 +24,18 @@ export default function CameraScreen({ navigation }: any) {
   const [showResult, setShowResult] = useState(false);
   const [imageUri, setImageUri] = useState<string>('');
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const [isSwitchingToLocal, setIsSwitchingToLocal] = useState(false);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current as unknown as number);
+      timerRef.current = null;
+    }
+    setProgress(0);
+    setIsSwitchingToLocal(false);
+  };
 
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
@@ -71,6 +86,15 @@ export default function CameraScreen({ navigation }: any) {
 
       setImageUri(uri);
       setIsLoading(true);
+      setProgress(0);
+      setIsSwitchingToLocal(false);
+      const start = Date.now();
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const ratio = Math.min(1, elapsed / TIMEOUT_MS);
+        setProgress(ratio);
+        if (elapsed >= TIMEOUT_MS) setIsSwitchingToLocal(true);
+      }, 100);
 
       // Realizar predicción con fallback
       const predictionResult = await predictWithFallback(uri);
@@ -98,9 +122,11 @@ export default function CameraScreen({ navigation }: any) {
         });
       }
 
+      clearTimer();
       setIsLoading(false);
       setShowResult(true);
     } catch (error: any) {
+      clearTimer();
       setIsLoading(false);
       Alert.alert('Error', error.message || 'Error al procesar la imagen');
     }
@@ -168,16 +194,12 @@ export default function CameraScreen({ navigation }: any) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Analizando</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>
-            Identificando el hongo...{'\n'}
-            Esto puede tomar unos segundos
-          </Text>
-        </View>
+        <AppHeader />
+        <LoadingAnimation
+          message="Analizando tu imagen..."
+          progress={progress}
+          showProgressBar={true}
+        />
       </SafeAreaView>
     );
   }
@@ -210,37 +232,28 @@ export default function CameraScreen({ navigation }: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <Text style={styles.closeX}>X</Text>
+              <Text style={styles.closeX}>✕</Text>
             </TouchableOpacity>
 
-            {imageUri && (
-              <Image source={{ uri: imageUri }} style={styles.resultImage} />
-            )}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Resultado del Análisis</Text>
+              
+              {result?.prediction && imageUri && (
+                <ResultCard
+                  imageUri={imageUri}
+                  isMorchella={result.prediction.predicted_index === 0}
+                  confidence={result.prediction.confidence}
+                  model={result.source === 'api' ? 'Online' : 'Local'}
+                />
+              )}
 
-            <View style={[
-              styles.sourceIndicator,
-              result?.source === 'api' ? styles.sourceApi : styles.sourceLocal
-            ]}>
-              <Text style={styles.sourceText}>
-                Modelo: {result?.source === 'api' ? 'Online' : 'Local'}
-              </Text>
-            </View>
-
-            {result?.prediction && (
-              <View style={styles.resultDetails}>
-                <Text style={styles.resultTitle}>Resultado</Text>
-                <Text style={[styles.resultLabel, { color: getResultColor(result) }]}>
-                  {displayLabelFromResult(result.prediction)}
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity 
-              style={styles.acceptButton} 
-              onPress={handleClose}
-            >
-              <Text style={styles.acceptButtonText}>Aceptar</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.acceptButton} 
+                onPress={handleClose}
+              >
+                <Text style={styles.acceptButtonText}>Aceptar</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -284,6 +297,18 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
+  progressBarContainer: {
+    width: 220,
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6B4F2A',
+  },
     backgroundColor: COLORS.card + '40',
     alignItems: 'center',
     justifyContent: 'center',
@@ -333,6 +358,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
     backgroundColor: COLORS.background,
     borderRadius: 16,
     padding: 24,
@@ -341,6 +367,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   closeButton: {
     position: 'absolute',

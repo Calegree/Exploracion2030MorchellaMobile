@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, Button, Image, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Button, Image, StyleSheet, Alert, ScrollView } from 'react-native';
+import { TIMEOUT_MS } from '../api/predict';
 import { predictWithFallback, PredictionResult } from '../services/PredictionService';
 import { launchCamera, launchImageLibrary, ImageLibraryOptions, CameraOptions } from 'react-native-image-picker';
+import LoadingAnimation from '../components/LoadingAnimation';
+import ResultCard from '../components/ResultCard';
 
 
 export default function TestScreen() {
   const [imageUri, setImageUri] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PredictionResult | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [isSwitchingToLocal, setIsSwitchingToLocal] = useState(false);
+  let timer: number | null = null;
 
 
 
@@ -16,6 +22,15 @@ export default function TestScreen() {
     if (!imageUri) return Alert.alert('Selecciona una imagen primero');
     setLoading(true);
     setResult(null); // Limpiar resultado anterior
+    setProgress(0);
+    const start = Date.now();
+    setIsSwitchingToLocal(false);
+    timer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const ratio = Math.min(1, elapsed / TIMEOUT_MS);
+      setProgress(ratio);
+      if (elapsed >= TIMEOUT_MS) setIsSwitchingToLocal(true);
+    }, 100) as unknown as number;
     
     try {
       // Usar la función con fallback automático
@@ -36,6 +51,9 @@ export default function TestScreen() {
       });
     } finally {
       setLoading(false);
+      if (timer) clearInterval(timer as unknown as number);
+      setProgress(0);
+      setIsSwitchingToLocal(false);
     }
   }
 
@@ -74,36 +92,25 @@ export default function TestScreen() {
       <Button title="Analizar imagen" onPress={onPredict} disabled={loading || !imageUri} />
 
       {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Analizando imagen...</Text>
-        </View>
+        <LoadingAnimation
+          message="Analizando tu imagen..."
+          progress={progress}
+          showProgressBar={true}
+        />
       )}
 
-      {result && result.prediction && (
+      {result && result.prediction && imageUri && (
         <View style={styles.result}>
-          {/* Indicador de fuente de predicción */}
-          <View style={[
-            styles.sourceIndicator,
-            result.source === 'api' ? styles.sourceApi : styles.sourceLocal
-          ]}>
-            <Text style={styles.sourceText}>
-              {result.source === 'api' 
-                ? '🌐 Predicción desde servidor' 
-                : '📱 Predicción local (offline)'}
-            </Text>
-            {result.modelSource && (
-              <Text style={styles.modelSourceText}>
-                Modelo: {result.modelSource}
-              </Text>
-            )}
-          </View>
-
-          {/* Resultados de la predicción */}
+          <Text style={styles.resultTitle}>Resultado del Análisis</Text>
+          <ResultCard
+            imageUri={imageUri}
+            isMorchella={result.prediction.predicted_index === 0}
+            confidence={result.prediction.confidence}
+            model={result.source === 'api' ? 'Online' : 'Local'}
+          />
+          
+          {/* Detalles adicionales para testing */}
           <View style={styles.predictionDetails}>
-            <Text style={styles.resultLabel}>
-              Resultado: <Text style={styles.resultValue}>{result.prediction.predicted_label}</Text>
-            </Text>
             <Text style={styles.resultLabel}>
               Confianza: <Text style={styles.resultValue}>{(result.prediction.confidence * 100).toFixed(2)}%</Text>
             </Text>
@@ -143,6 +150,18 @@ const styles = StyleSheet.create({
     marginTop: 16,
     alignItems: 'center',
   },
+  progressBarContainer: {
+    width: 220,
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+  },
   loadingText: {
     marginTop: 8,
     color: '#666',
@@ -151,6 +170,12 @@ const styles = StyleSheet.create({
   
   result: { 
     marginTop: 16,
+    marginBottom: 12,
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2F2418',
     marginBottom: 12,
   },
   
