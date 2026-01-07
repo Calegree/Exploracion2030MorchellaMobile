@@ -54,7 +54,7 @@ export default function ResultCard({ imageUri, isMorchella, onPress, accessibili
           })()}
         </Text>
         {model ? (
-          <Text style={styles.modelInline} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={styles.modelInline}>
             {model === 'Online'
               ? 'Análisis realizado con modelo en la nube'
               : 'Sin conexión: usando inteligencia local de tu teléfono'}
@@ -90,9 +90,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+    minHeight: 88,
   },
   resultText: {
     fontSize: 16,
@@ -112,6 +113,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: 'center',
     flexShrink: 1,
+    flexWrap: 'wrap',
+    maxWidth: '100%',
   },
   // Morchella (soft green)
   morchellaBg: {

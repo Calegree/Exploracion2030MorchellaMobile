@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, SafeAreaView, Alert, Modal } from 'react-native';
+import { TIMEOUT_MS } from '../api/predict';
 import AppHeader from '../components/AppHeader';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { predictWithFallback } from '../services/PredictionService';
@@ -19,6 +20,18 @@ export default function ScanScreen({ navigation }: any) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const [isSwitchingToLocal, setIsSwitchingToLocal] = useState(false);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current as unknown as number);
+      timerRef.current = null;
+    }
+    setProgress(0);
+    setIsSwitchingToLocal(false);
+  };
 
   const pickImage = async () => {
     try {
@@ -38,6 +51,15 @@ export default function ScanScreen({ navigation }: any) {
 
       setSelectedImage(uri);
       setIsLoading(true);
+      setProgress(0);
+      setIsSwitchingToLocal(false);
+      const start = Date.now();
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const ratio = Math.min(1, elapsed / TIMEOUT_MS);
+        setProgress(ratio);
+        if (elapsed >= TIMEOUT_MS) setIsSwitchingToLocal(true);
+      }, 100);
 
       // Realizar predicción con fallback
       const predictionResult = await predictWithFallback(uri);
@@ -66,9 +88,11 @@ export default function ScanScreen({ navigation }: any) {
         });
       }
 
+      clearTimer();
       setIsLoading(false);
       setShowResult(true);
     } catch (error: any) {
+      clearTimer();
       setIsLoading(false);
       setSelectedImage(null);
       Alert.alert('Error', error.message || 'Error al procesar la imagen');
@@ -134,16 +158,16 @@ export default function ScanScreen({ navigation }: any) {
           <Text style={styles.headerTitle}>Reconocimiento</Text>
         </View>
 
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>
-            Identificando el hongo...{'\n'}
-            Esto puede tomar unos segundos
-          </Text>
-          {selectedImage && (
-            <Image source={{ uri: selectedImage }} style={styles.loadingImage} />
-          )}
-        </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>{isSwitchingToLocal ? 'Cambiando al modelo local' : 'Conectando con nuestro cerebro en la nube'}</Text>
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBarFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: isSwitchingToLocal ? '#FF9800' : COLORS.primary }]} />
+            </View>
+            {selectedImage && (
+              <Image source={{ uri: selectedImage }} style={styles.loadingImage} />
+            )}
+          </View>
       </SafeAreaView>
     );
   }
@@ -318,6 +342,18 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     opacity: 0.5,
+  },
+  progressBarContainer: {
+    width: 220,
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6B4F2A',
   },
   modalOverlay: {
     flex: 1,

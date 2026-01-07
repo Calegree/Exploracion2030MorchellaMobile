@@ -22,7 +22,7 @@ export interface ApiError {
 }
 
 const API_ENDPOINT = 'http://10.0.2.2:5000/predict';
-const TIMEOUT_MS = 10000; // 10 segundos
+export const TIMEOUT_MS = 8000; // 8 segundos
 
 // IPs alternativas para probar si 10.0.2.2 no funciona:
 // - Emulador Android Studio: 10.0.2.2

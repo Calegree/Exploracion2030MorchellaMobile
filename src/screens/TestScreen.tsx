@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Button, Image, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { TIMEOUT_MS } from '../api/predict';
+import React, { useState } from 'react';
 import { predictWithFallback, PredictionResult } from '../services/PredictionService';
 import { launchCamera, launchImageLibrary, ImageLibraryOptions, CameraOptions } from 'react-native-image-picker';
 
@@ -8,6 +10,9 @@ export default function TestScreen() {
   const [imageUri, setImageUri] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PredictionResult | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [isSwitchingToLocal, setIsSwitchingToLocal] = useState(false);
+  let timer: number | null = null;
 
 
 
@@ -16,6 +21,15 @@ export default function TestScreen() {
     if (!imageUri) return Alert.alert('Selecciona una imagen primero');
     setLoading(true);
     setResult(null); // Limpiar resultado anterior
+    setProgress(0);
+    const start = Date.now();
+    setIsSwitchingToLocal(false);
+    timer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const ratio = Math.min(1, elapsed / TIMEOUT_MS);
+      setProgress(ratio);
+      if (elapsed >= TIMEOUT_MS) setIsSwitchingToLocal(true);
+    }, 100) as unknown as number;
     
     try {
       // Usar la función con fallback automático
@@ -36,6 +50,9 @@ export default function TestScreen() {
       });
     } finally {
       setLoading(false);
+      if (timer) clearInterval(timer as unknown as number);
+      setProgress(0);
+      setIsSwitchingToLocal(false);
     }
   }
 
@@ -76,7 +93,10 @@ export default function TestScreen() {
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Analizando imagen...</Text>
+          <Text style={styles.loadingText}>{isSwitchingToLocal ? 'Cambiando al modelo local' : 'Conectando con nuestro cerebro en la nube'}</Text>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: isSwitchingToLocal ? '#FF9800' : '#007AFF' }]} />
+          </View>
         </View>
       )}
 
@@ -142,6 +162,18 @@ const styles = StyleSheet.create({
   loadingContainer: {
     marginTop: 16,
     alignItems: 'center',
+  },
+  progressBarContainer: {
+    width: 220,
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
   },
   loadingText: {
     marginTop: 8,

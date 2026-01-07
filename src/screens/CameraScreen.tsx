@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, SafeAreaView, Modal, Image, Platform, PermissionsAndroid } from 'react-native';
+import { TIMEOUT_MS } from '../api/predict';
 import AppHeader from '../components/AppHeader';
 import { launchCamera } from 'react-native-image-picker';
 import { predictWithFallback } from '../services/PredictionService';
@@ -21,6 +22,18 @@ export default function CameraScreen({ navigation }: any) {
   const [showResult, setShowResult] = useState(false);
   const [imageUri, setImageUri] = useState<string>('');
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const [isSwitchingToLocal, setIsSwitchingToLocal] = useState(false);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current as unknown as number);
+      timerRef.current = null;
+    }
+    setProgress(0);
+    setIsSwitchingToLocal(false);
+  };
 
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
@@ -71,6 +84,15 @@ export default function CameraScreen({ navigation }: any) {
 
       setImageUri(uri);
       setIsLoading(true);
+      setProgress(0);
+      setIsSwitchingToLocal(false);
+      const start = Date.now();
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const ratio = Math.min(1, elapsed / TIMEOUT_MS);
+        setProgress(ratio);
+        if (elapsed >= TIMEOUT_MS) setIsSwitchingToLocal(true);
+      }, 100);
 
       // Realizar predicción con fallback
       const predictionResult = await predictWithFallback(uri);
@@ -98,9 +120,11 @@ export default function CameraScreen({ navigation }: any) {
         });
       }
 
+      clearTimer();
       setIsLoading(false);
       setShowResult(true);
     } catch (error: any) {
+      clearTimer();
       setIsLoading(false);
       Alert.alert('Error', error.message || 'Error al procesar la imagen');
     }
@@ -173,10 +197,10 @@ export default function CameraScreen({ navigation }: any) {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>
-            Identificando el hongo...{'\n'}
-            Esto puede tomar unos segundos
-          </Text>
+          <Text style={styles.loadingText}>{isSwitchingToLocal ? 'Cambiando al modelo local' : 'Conectando con nuestro cerebro en la nube'}</Text>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: isSwitchingToLocal ? COLORS.warning : COLORS.primary }]} />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -284,6 +308,18 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
+  progressBarContainer: {
+    width: 220,
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6B4F2A',
+  },
     backgroundColor: COLORS.card + '40',
     alignItems: 'center',
     justifyContent: 'center',
